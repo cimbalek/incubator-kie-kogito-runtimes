@@ -20,6 +20,7 @@ package org.jbpm.bpmn2;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Properties;
 
 import org.jbpm.bpmn2.objects.TestWorkItemHandler;
 import org.jbpm.bpmn2.signalscope.*;
@@ -27,6 +28,11 @@ import org.jbpm.test.utils.ProcessTestHelper;
 import org.jbpm.workflow.instance.WorkflowProcessInstance;
 import org.junit.jupiter.api.Test;
 import org.kie.kogito.Application;
+import org.kie.kogito.addons.externalsignals.ExternalSignalConfig;
+import org.kie.kogito.addons.externalsignals.ExternalSignalDispatcher;
+import org.kie.kogito.addons.externalsignals.ExternalSignalEvent;
+import org.kie.kogito.addons.externalsignals.runtime.ExternalSignalConfigImpl;
+import org.kie.kogito.addons.externalsignals.runtime.ExternalSignalWorkItemHandler;
 import org.kie.kogito.internal.process.event.DefaultKogitoProcessEventListener;
 import org.kie.kogito.process.Process;
 import org.kie.kogito.process.ProcessInstance;
@@ -419,9 +425,192 @@ public class SignalScopeTest extends JbpmBpmn2TestCase {
         assertThat(instance2.status()).isEqualTo(ProcessInstance.STATE_ACTIVE);
     }
 
+    // ========================================
+    // EXTERNAL SIGNAL TESTS
+    // ========================================
+
+    /**
+     * Test external signal dispatching with default scope.
+     * Verifies that external signals are dispatched correctly when using default scope.
+     */
+    @Test
+    public void testExternalSignalWithDefaultScope() {
+        Application app = ProcessTestHelper.newApplication();
+
+        // Create test dispatcher that captures events
+        TestExternalSignalDispatcher testDispatcher = new TestExternalSignalDispatcher();
+
+        // Register external signal handler
+        ExternalSignalWorkItemHandler externalSignalHandler = new ExternalSignalWorkItemHandler(testDispatcher);
+        ProcessTestHelper.registerHandler(app, "ExternalSignal", externalSignalHandler);
+
+        // Create catcher process that waits for signal
+        Process<SignalScopeCatchSignalIntermediateEventModel> catcherProcess = SignalScopeCatchSignalIntermediateEventProcess.newProcess(app);
+        ProcessInstance<SignalScopeCatchSignalIntermediateEventModel> catcherInstance = catcherProcess.createInstance(catcherProcess.createModel());
+        catcherInstance.start();
+        assertThat(catcherInstance.status()).isEqualTo(ProcessInstance.STATE_ACTIVE);
+
+        // Create thrower process that sends signal with default scope
+        Process<SignalScopeEmitDefaultScopeSignalModel> throwerProcess = SignalScopeEmitDefaultScopeSignalProcess.newProcess(app);
+        ProcessInstance<SignalScopeEmitDefaultScopeSignalModel> throwerInstance = throwerProcess.createInstance(throwerProcess.createModel());
+        throwerInstance.start();
+
+        // Thrower should complete
+        assertThat(throwerInstance.status()).isEqualTo(ProcessInstance.STATE_COMPLETED);
+
+        // Verify external signal was dispatched
+        assertThat(testDispatcher.getDispatchedEvents()).hasSize(1);
+        ExternalSignalEvent event = testDispatcher.getDispatchedEvents().get(0);
+        assertThat(event.getSignalName()).isEqualTo("testSignal");
+        assertThat(event.getSourceProcessInstanceId()).isNotNull();
+
+        // Complete catcher by sending signal programmatically
+        catcherInstance.send(SignalFactory.of("testSignal", "test-data"));
+        assertInstanceWasCompleted(app, catcherInstance.id());
+    }
+
+    /**
+     * Test external signal dispatching with project scope.
+     * Verifies that external signals are dispatched correctly when using project scope.
+     */
+    @Test
+    public void testExternalSignalWithProjectScope() {
+        Application app = ProcessTestHelper.newApplication();
+
+        // Create test dispatcher that captures events
+        TestExternalSignalDispatcher testDispatcher = new TestExternalSignalDispatcher();
+
+        // Register external signal handler
+        ExternalSignalWorkItemHandler externalSignalHandler = new ExternalSignalWorkItemHandler(testDispatcher);
+        ProcessTestHelper.registerHandler(app, "ExternalSignal", externalSignalHandler);
+
+        // Create catcher process that waits for signal
+        Process<SignalScopeCatchSignalIntermediateEventModel> catcherProcess = SignalScopeCatchSignalIntermediateEventProcess.newProcess(app);
+        ProcessInstance<SignalScopeCatchSignalIntermediateEventModel> catcherInstance = catcherProcess.createInstance(catcherProcess.createModel());
+        catcherInstance.start();
+        assertThat(catcherInstance.status()).isEqualTo(ProcessInstance.STATE_ACTIVE);
+
+        // Create thrower process that sends signal with project scope
+        Process<SignalScopeEmitProjectScopeSignalModel> throwerProcess = SignalScopeEmitProjectScopeSignalProcess.newProcess(app);
+        ProcessInstance<SignalScopeEmitProjectScopeSignalModel> throwerInstance = throwerProcess.createInstance(throwerProcess.createModel());
+        throwerInstance.start();
+
+        // Thrower should complete
+        assertThat(throwerInstance.status()).isEqualTo(ProcessInstance.STATE_COMPLETED);
+
+        // Verify external signal was dispatched
+        assertThat(testDispatcher.getDispatchedEvents()).hasSize(1);
+        ExternalSignalEvent event = testDispatcher.getDispatchedEvents().get(0);
+        assertThat(event.getSignalName()).isEqualTo("testSignal");
+        assertThat(event.getSourceProcessInstanceId()).isNotNull();
+
+        // Complete catcher by sending signal programmatically
+        catcherInstance.send(SignalFactory.of("testSignal", "test-data"));
+        assertInstanceWasCompleted(app, catcherInstance.id());
+    }
+
+    /**
+     * Test external signal dispatching with processInstance scope.
+     * Verifies that external signals are dispatched correctly when using processInstance scope.
+     */
+    @Test
+    public void testExternalSignalWithProcessInstanceScope() {
+        Application app = ProcessTestHelper.newApplication();
+
+        // Create test dispatcher that captures events
+        TestExternalSignalDispatcher testDispatcher = new TestExternalSignalDispatcher();
+
+        // Register external signal handler
+        ExternalSignalWorkItemHandler externalSignalHandler = new ExternalSignalWorkItemHandler(testDispatcher);
+        ProcessTestHelper.registerHandler(app, "ExternalSignal", externalSignalHandler);
+
+        // Create catcher process that waits for signal
+        Process<SignalScopeCatchSignalIntermediateEventModel> catcherProcess = SignalScopeCatchSignalIntermediateEventProcess.newProcess(app);
+        ProcessInstance<SignalScopeCatchSignalIntermediateEventModel> catcherInstance = catcherProcess.createInstance(catcherProcess.createModel());
+        catcherInstance.start();
+        assertThat(catcherInstance.status()).isEqualTo(ProcessInstance.STATE_ACTIVE);
+
+        // Create thrower process that sends signal with processInstance scope
+        Process<SignalScopeEmitProcessInstanceScopeSignalModel> throwerProcess = SignalScopeEmitProcessInstanceScopeSignalProcess.newProcess(app);
+        ProcessInstance<SignalScopeEmitProcessInstanceScopeSignalModel> throwerInstance = throwerProcess.createInstance(throwerProcess.createModel());
+        throwerInstance.start();
+
+        // Thrower should complete
+        assertThat(throwerInstance.status()).isEqualTo(ProcessInstance.STATE_COMPLETED);
+
+        // Verify external signal was dispatched (processInstance scope still dispatches externally)
+        assertThat(testDispatcher.getDispatchedEvents()).hasSize(1);
+        ExternalSignalEvent event = testDispatcher.getDispatchedEvents().get(0);
+        assertThat(event.getSignalName()).isEqualTo("testSignal");
+        assertThat(event.getSourceProcessInstanceId()).isNotNull();
+
+        // Catcher should still be waiting (signal didn't reach it due to processInstance scope)
+        assertThat(catcherInstance.status()).isEqualTo(ProcessInstance.STATE_ACTIVE);
+
+        // Complete catcher by sending signal programmatically
+        catcherInstance.send(SignalFactory.of("testSignal", "test-data"));
+        assertInstanceWasCompleted(app, catcherInstance.id());
+    }
+
+    /**
+     * Test external signal with metadata.
+     * Verifies that external signals include correct metadata.
+     */
+    @Test
+    public void testExternalSignalWithMetadata() {
+        Application app = ProcessTestHelper.newApplication();
+
+        // Create test dispatcher that captures events
+        TestExternalSignalDispatcher testDispatcher = new TestExternalSignalDispatcher();
+
+        // Register external signal handler
+        ExternalSignalWorkItemHandler externalSignalHandler = new ExternalSignalWorkItemHandler(testDispatcher);
+        ProcessTestHelper.registerHandler(app, "ExternalSignal", externalSignalHandler);
+
+        // Create thrower process that sends signal with default scope
+        Process<SignalScopeEmitDefaultScopeSignalModel> throwerProcess = SignalScopeEmitDefaultScopeSignalProcess.newProcess(app);
+        ProcessInstance<SignalScopeEmitDefaultScopeSignalModel> throwerInstance = throwerProcess.createInstance(throwerProcess.createModel());
+        throwerInstance.start();
+
+        // Verify external signal was dispatched with metadata
+        assertThat(testDispatcher.getDispatchedEvents()).hasSize(1);
+        ExternalSignalEvent event = testDispatcher.getDispatchedEvents().get(0);
+
+        // Verify CloudEvent-compatible fields
+        assertThat(event.getType()).isEqualTo("org.kie.kogito.signal.external");
+        assertThat(event.getSource()).isNotNull();
+        assertThat(event.getId()).isNotNull();
+        assertThat(event.getTimestamp()).isNotNull();
+
+        // Verify metadata is present
+        assertThat(event.getMetadata()).isNotNull();
+        assertThat(event.getMetadata()).containsKey("workItemId");
+    }
+
+    /**
+     * Test external signal configuration.
+     * Verifies that signal-to-topic mapping works correctly.
+     */
+    @Test
+    public void testExternalSignalConfiguration() {
+        // Create configuration with mappings
+        Properties props = new Properties();
+        props.setProperty("kogito.external-signals.default-prefix", "test-signals");
+        props.setProperty("kogito.external-signals.mapping.OrderApproval", "order-approval-topic");
+        ExternalSignalConfig config = new ExternalSignalConfigImpl(props);
+
+        // Test explicit mapping
+        String topic1 = config.resolveTrigger("OrderApproval");
+        assertThat(topic1).isEqualTo("order-approval-topic");
+
+        // Test default naming convention
+        String topic2 = config.resolveTrigger("UnmappedSignal");
+        assertThat(topic2).isEqualTo("test-signals-UnmappedSignal");
+    }
+
     /**
      * Helper method to check if already removed instance was completed
-     * 
+     *
      * @param app Application context
      * @param pid ID of the process instance to check
      */
@@ -431,5 +620,33 @@ public class SignalScopeTest extends JbpmBpmn2TestCase {
                 .get()
                 .extracting(WorkflowProcessInstance::getState)
                 .isEqualTo(ProcessInstance.STATE_COMPLETED);
+    }
+
+    /**
+     * Test dispatcher implementation that captures dispatched events for verification.
+     */
+    private static class TestExternalSignalDispatcher implements ExternalSignalDispatcher {
+        private final List<ExternalSignalEvent> dispatchedEvents = new ArrayList<>();
+        private final ExternalSignalConfig config;
+
+        public TestExternalSignalDispatcher() {
+            Properties props = new Properties();
+            props.setProperty("kogito.external-signals.default-prefix", "test-signals");
+            this.config = new ExternalSignalConfigImpl(props);
+        }
+
+        @Override
+        public void dispatch(ExternalSignalEvent event) {
+            dispatchedEvents.add(event);
+        }
+
+        @Override
+        public String resolveTrigger(String signalName) {
+            return config.resolveTrigger(signalName);
+        }
+
+        public List<ExternalSignalEvent> getDispatchedEvents() {
+            return dispatchedEvents;
+        }
     }
 }
